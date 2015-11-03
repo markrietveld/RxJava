@@ -54,14 +54,15 @@ public final class SerialSubscription implements Subscription {
     public void unsubscribe() {
         State oldState;
         State newState;
+        final AtomicReference<State> localState = this.state;
         do {
-            oldState = state.get();
+            oldState = localState.get();
             if (oldState.isUnsubscribed) {
                 return;
             } else {
                 newState = oldState.unsubscribe();
             }
-        } while (!state.compareAndSet(oldState, newState));
+        } while (!localState.compareAndSet(oldState, newState));
         oldState.subscription.unsubscribe();
     }
 
@@ -79,15 +80,16 @@ public final class SerialSubscription implements Subscription {
         }
         State oldState;
         State newState;
+        final AtomicReference<State> localState = this.state;
         do {
-            oldState = state.get();
+            oldState = localState.get();
             if (oldState.isUnsubscribed) {
                 s.unsubscribe();
                 return;
             } else {
                 newState = oldState.set(s);
             }
-        } while (!state.compareAndSet(oldState, newState));
+        } while (!localState.compareAndSet(oldState, newState));
         oldState.subscription.unsubscribe();
     }
 

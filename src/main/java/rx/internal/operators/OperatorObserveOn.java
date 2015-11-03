@@ -173,10 +173,12 @@ public final class OperatorObserveOn<T> implements Operator<T, T> {
         // only execute this from schedule()
         void pollQueue() {
             int emitted = 0;
+            final AtomicLong localRequested = this.requested;
+            final AtomicLong localCounter = this.counter;
             do {
-                counter.set(1);
+                localCounter.set(1);
                 long produced = 0;
-                long r = requested.get();
+                long r = localRequested.get();
                 for (;;) {
                     if (child.isUnsubscribed())
                         return;

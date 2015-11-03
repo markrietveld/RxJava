@@ -135,7 +135,8 @@ public final class OnSubscribeCombineLatest<T, R> implements OnSubscribe<R> {
          * that there is always once who acts on each `tick`. Same concept as used in OperationObserveOn.
          */
         void tick() {
-            if (counter.getAndIncrement() == 0) {
+            AtomicLong localCounter = this.counter;
+            if (localCounter.getAndIncrement() == 0) {
                 int emitted = 0;
                 do {
                     // we only emit if requested > 0
@@ -151,7 +152,7 @@ public final class OnSubscribeCombineLatest<T, R> implements OnSubscribe<R> {
                             }
                         }
                     }
-                } while (counter.decrementAndGet() > 0);
+                } while (localCounter.decrementAndGet() > 0);
                 if (emitted > 0) {
                     for (MultiSourceRequestableSubscriber<T, R> s : subscribers) {
                         s.requestUpTo(emitted);

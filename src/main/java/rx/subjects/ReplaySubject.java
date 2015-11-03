@@ -115,15 +115,17 @@ public final class ReplaySubject<T> extends Subject<T, T> {
                 }
                 boolean skipFinal = false;
                 try {
+                    //noinspection UnnecessaryLocalVariable - Avoid re-read from outside this scope
+                    final UnboundedReplayState<T> localState = state;
                     for (;;) {
                         int idx = o.<Integer>index();
-                        int sidx = state.index.get();
+                        int sidx = localState.get();
                         if (idx != sidx) {
-                            Integer j = state.replayObserverFromIndex(idx, o);
+                            Integer j = localState.replayObserverFromIndex(idx, o);
                             o.index(j);
                         }
                         synchronized (o) {
-                            if (sidx == state.index.get()) {
+                            if (sidx == localState.get()) {
                                 o.emitting = false;
                                 skipFinal = true;
                                 break;

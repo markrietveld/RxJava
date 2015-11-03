@@ -134,11 +134,12 @@ public final class OperatorMaterialize<T> implements Operator<Notification<T>, T
                 } 
             }
             // drain loop
+            final AtomicLong localRequested = this.requested;
             while (!child.isUnsubscribed()) {
                 Notification<T> tn;
                 tn = terminalNotification;
                 if (tn != null) {
-                    if (requested.get() > 0) {
+                    if (localRequested.get() > 0) {
                         // allow tn to be GC'd after the onNext call
                         terminalNotification = null;
                         // emit the terminal notification

@@ -75,14 +75,15 @@ public final class RefCountSubscription implements Subscription {
     public Subscription get() {
         State oldState;
         State newState;
+        final AtomicReference<State> localState = this.state;
         do {
-            oldState = state.get();
+            oldState = localState.get();
             if (oldState.isUnsubscribed) {
                 return Subscriptions.unsubscribed();
             } else {
                 newState = oldState.addChild();
             }
-        } while (!state.compareAndSet(oldState, newState));
+        } while (!localState.compareAndSet(oldState, newState));
 
         return new InnerSubscription(this);
     }
@@ -96,13 +97,14 @@ public final class RefCountSubscription implements Subscription {
     public void unsubscribe() {
         State oldState;
         State newState;
+        final AtomicReference<State> localState = this.state;
         do {
-            oldState = state.get();
+            oldState = localState.get();
             if (oldState.isUnsubscribed) {
                 return;
             }
             newState = oldState.unsubscribe();
-        } while (!state.compareAndSet(oldState, newState));
+        } while (!localState.compareAndSet(oldState, newState));
         unsubscribeActualIfApplicable(newState);
     }
 
@@ -114,10 +116,11 @@ public final class RefCountSubscription implements Subscription {
     void unsubscribeAChild() {
         State oldState;
         State newState;
+        final AtomicReference<State> localState = this.state;
         do {
-            oldState = state.get();
+            oldState = localState.get();
             newState = oldState.removeChild();
-        } while (!state.compareAndSet(oldState, newState));
+        } while (!localState.compareAndSet(oldState, newState));
         unsubscribeActualIfApplicable(newState);
     }
 
