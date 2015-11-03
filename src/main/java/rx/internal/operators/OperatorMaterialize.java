@@ -114,12 +114,13 @@ public final class OperatorMaterialize<T> implements Operator<Notification<T>, T
 
         private void decrementRequested() {
             // atomically decrement requested
+            AtomicLong localRequested = this.requested;
             while (true) {
-                long r = requested.get();
+                long r = localRequested.get();
                 if (r == Long.MAX_VALUE) {
                     // don't decrement if unlimited requested
                     return;
-                } else if (requested.compareAndSet(r, r - 1)) {
+                } else if (localRequested.compareAndSet(r, r - 1)) {
                     return;
                 }
             }
