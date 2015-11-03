@@ -26,7 +26,7 @@ import rx.Subscription;
  */
 public final class MultipleAssignmentSubscription implements Subscription {
 
-    AtomicReference<State> state = new AtomicReference<State>(new State(false, Subscriptions.empty()));
+    final AtomicReference<State> state = new AtomicReference<State>(new State(false, Subscriptions.empty()));
     
     private static final class State {
         final boolean isUnsubscribed;

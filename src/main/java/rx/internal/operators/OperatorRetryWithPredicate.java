@@ -53,7 +53,7 @@ public final class OperatorRetryWithPredicate<T> implements Observable.Operator<
         final SerialSubscription serialSubscription;
         final ProducerArbiter pa;
         
-        AtomicInteger attempts = new AtomicInteger();
+        final AtomicInteger attempts = new AtomicInteger();
 
         public SourceSubscriber(Subscriber<? super T> child, 
                 final Func2<Integer, Throwable, Boolean> predicate, 

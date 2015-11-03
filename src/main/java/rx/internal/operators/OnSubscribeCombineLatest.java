@@ -89,8 +89,7 @@ public final class OnSubscribeCombineLatest<T, R> implements OnSubscribe<R> {
         private final BitSet completion;
         private volatile int completionCount; // does this need to be volatile or is WIP sufficient?
 
-        @SuppressWarnings("unused")
-        private AtomicLong counter = new AtomicLong();
+        private final AtomicLong counter = new AtomicLong();
 
         @SuppressWarnings("unchecked")
         public MultiSourceProducer(final Subscriber<? super R> child, final List<? extends Observable<? extends T>> sources, FuncN<? extends R> combinator) {

@@ -90,8 +90,8 @@ class OperatorTimeoutBase<T> implements Operator<T, T> {
         private final Observable<? extends T> other;
         private final Scheduler.Worker inner;
         
-        AtomicInteger terminated = new AtomicInteger();
-        AtomicLong actual = new AtomicLong();
+        final AtomicInteger terminated = new AtomicInteger();
+        final AtomicLong actual = new AtomicLong();
         
         private TimeoutSubscriber(
                 SerializedSubscriber<T> serializedSubscriber,

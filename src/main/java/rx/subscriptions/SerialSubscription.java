@@ -24,7 +24,7 @@ import rx.Subscription;
  * the previous underlying subscription to be unsubscribed.
  */
 public final class SerialSubscription implements Subscription {
-    AtomicReference<State> state = new AtomicReference<State>(new State(false, Subscriptions.empty()));
+    final AtomicReference<State> state = new AtomicReference<State>(new State(false, Subscriptions.empty()));
 
     private static final class State {
         final boolean isUnsubscribed;

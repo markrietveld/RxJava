@@ -79,11 +79,9 @@ public final class OperatorObserveOn<T> implements Operator<T, T> {
         // the status of the current stream
         volatile boolean finished = false;
 
-        @SuppressWarnings("unused")
-        AtomicLong requested = new AtomicLong();
+        final AtomicLong requested = new AtomicLong();
         
-        @SuppressWarnings("unused")
-        AtomicLong counter = new AtomicLong();
+        final AtomicLong counter = new AtomicLong();
         
         volatile Throwable error;
 

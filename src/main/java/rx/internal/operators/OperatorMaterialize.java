@@ -76,7 +76,7 @@ public final class OperatorMaterialize<T> implements Operator<Notification<T>, T
         // guarded by this
         private boolean missed = false;
 
-        private AtomicLong requested = new AtomicLong();
+        private final AtomicLong requested = new AtomicLong();
 
         ParentSubscriber(Subscriber<? super Notification<T>> child) {
             this.child = child;

@@ -59,7 +59,7 @@ public final class BlockingOperatorLatest {
     static final class LatestObserverIterator<T> extends Subscriber<Notification<? extends T>> implements Iterator<T> {
         final Semaphore notify = new Semaphore(0);
         // observer's notification
-        AtomicReference<Notification<? extends T>> value = new AtomicReference<Notification<? extends T>>();
+        final AtomicReference<Notification<? extends T>> value = new AtomicReference<Notification<? extends T>>();
 
         @Override
         public void onNext(Notification<? extends T> args) {

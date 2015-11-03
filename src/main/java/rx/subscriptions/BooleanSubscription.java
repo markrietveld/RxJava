@@ -28,7 +28,7 @@ import rx.functions.Action0;
 public final class BooleanSubscription implements Subscription {
 
     private final Action0 action;
-    AtomicInteger unsubscribed = new AtomicInteger();
+    final AtomicInteger unsubscribed = new AtomicInteger();
 
     public BooleanSubscription() {
         action = null;

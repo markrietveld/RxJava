@@ -46,7 +46,7 @@ public final class TrampolineScheduler extends Scheduler {
 
     private static class InnerCurrentThreadScheduler extends Scheduler.Worker implements Subscription {
 
-        AtomicInteger counter = new AtomicInteger();
+        final AtomicInteger counter = new AtomicInteger();
         private final PriorityBlockingQueue<TimedAction> queue = new PriorityBlockingQueue<TimedAction>();
         private final BooleanSubscription innerSubscription = new BooleanSubscription();
         private final AtomicInteger wip = new AtomicInteger();

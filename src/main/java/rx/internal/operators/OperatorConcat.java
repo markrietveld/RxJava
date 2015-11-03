@@ -84,10 +84,10 @@ public final class OperatorConcat<T> implements Operator<T, Observable<? extends
 
         volatile ConcatInnerSubscriber<T> currentSubscriber;
 
-        AtomicInteger wip = new AtomicInteger();
+        final AtomicInteger wip = new AtomicInteger();
 
         // accessed by REQUESTED
-        private AtomicLong requested = new AtomicLong();
+        private final AtomicLong requested = new AtomicLong();
         private final ProducerArbiter arbiter;
 
         public ConcatSubscriber(Subscriber<T> s, SerialSubscription current) {
@@ -186,7 +186,7 @@ public final class OperatorConcat<T> implements Operator<T, Observable<? extends
         private final Subscriber<T> child;
         private final ConcatSubscriber<T> parent;
         @SuppressWarnings("unused")
-        private AtomicInteger once = new AtomicInteger();
+        private final AtomicInteger once = new AtomicInteger();
         private final ProducerArbiter arbiter;
 
         public ConcatInnerSubscriber(ConcatSubscriber<T> parent, Subscriber<T> child, ProducerArbiter arbiter) {
