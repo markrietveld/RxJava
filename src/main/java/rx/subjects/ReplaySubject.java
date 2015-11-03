@@ -1101,7 +1101,7 @@ public final class ReplaySubject<T> extends Subject<T, T> {
     @Override
     public boolean hasThrowable() {
         NotificationLite<T> nl = ssm.nl;
-        Object o = ssm.get();
+        Object o = ssm.getLatest();
         return nl.isError(o);
     }
     /**
@@ -1112,7 +1112,7 @@ public final class ReplaySubject<T> extends Subject<T, T> {
     @Override
     public boolean hasCompleted() {
         NotificationLite<T> nl = ssm.nl;
-        Object o = ssm.get();
+        Object o = ssm.getLatest();
         return o != null && !nl.isError(o);
     }
     /**
@@ -1124,7 +1124,7 @@ public final class ReplaySubject<T> extends Subject<T, T> {
     @Override
     public Throwable getThrowable() {
         NotificationLite<T> nl = ssm.nl;
-        Object o = ssm.get();
+        Object o = ssm.getLatest();
         if (nl.isError(o)) {
             return nl.getError(o);
         }

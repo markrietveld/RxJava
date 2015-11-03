@@ -69,11 +69,11 @@ import rx.subscriptions.Subscriptions;
         }));
     }    
     /** Set the latest NotificationLite value. */
-    void set(Object value) {
+    void setLatest(Object value) {
         latest = value;
     }
     /** @return Retrieve the latest NotificationLite value */
-    Object get() {
+    Object getLatest() {
         return latest;
     }
     /** @return the array of active subscribers, don't write into the array! */
@@ -121,7 +121,7 @@ import rx.subscriptions.Subscriptions;
      * @return the array of SubjectObservers, don't write into the array!
      */
     SubjectObserver<T>[] next(Object n) {
-        set(n);
+        setLatest(n);
         return state.get().observers;
     }
     /**
@@ -131,7 +131,7 @@ import rx.subscriptions.Subscriptions;
      * @return the last active SubjectObservers
      */
     SubjectObserver<T>[] terminate(Object n) {
-        set(n);
+        setLatest(n);
         active = false;
 
         State<T> oldState = state.get();
