@@ -27,13 +27,14 @@ import rx.functions.Action0;
  */
 public final class BooleanSubscription implements Subscription {
 
-    final AtomicReference<Action0> actionRef = new AtomicReference<Action0>();
+    final AtomicReference<Action0> actionRef;
 
     public BooleanSubscription() {
+        actionRef = new AtomicReference<Action0>();
     }
 
     private BooleanSubscription(Action0 action) {
-        this.actionRef.set(action);
+        actionRef = new AtomicReference<Action0>(action);
     }
 
     /**
