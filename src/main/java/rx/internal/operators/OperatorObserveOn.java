@@ -16,8 +16,8 @@
 package rx.internal.operators;
 
 import java.util.Queue;
-import java.util.concurrent.atomic.AtomicIntegerFieldUpdater;
-import java.util.concurrent.atomic.AtomicLongFieldUpdater;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 
 import rx.Observable.Operator;
 import rx.Producer;
@@ -80,17 +80,11 @@ public final class OperatorObserveOn<T> implements Operator<T, T> {
         volatile boolean finished = false;
 
         @SuppressWarnings("unused")
-        volatile long requested = 0;
+        AtomicLong requested = new AtomicLong();
         
-        @SuppressWarnings("rawtypes")
-        static final AtomicLongFieldUpdater<ObserveOnSubscriber> REQUESTED = AtomicLongFieldUpdater.newUpdater(ObserveOnSubscriber.class, "requested");
-
         @SuppressWarnings("unused")
-        volatile long counter;
+        AtomicLong counter = new AtomicLong();
         
-        @SuppressWarnings("rawtypes")
-        static final AtomicLongFieldUpdater<ObserveOnSubscriber> COUNTER_UPDATER = AtomicLongFieldUpdater.newUpdater(ObserveOnSubscriber.class, "counter");
-
         volatile Throwable error;
 
         // do NOT pass the Subscriber through to couple the subscription chain ... unsubscribing on the parent should
@@ -114,7 +108,7 @@ public final class OperatorObserveOn<T> implements Operator<T, T> {
 
                 @Override
                 public void request(long n) {
-                    BackpressureUtils.getAndAddRequest(REQUESTED, ObserveOnSubscriber.this, n);
+                    BackpressureUtils.getAndAddRequest(requested, n);
                     schedule();
                 }
 
@@ -173,7 +167,7 @@ public final class OperatorObserveOn<T> implements Operator<T, T> {
         };
 
         protected void schedule() {
-            if (COUNTER_UPDATER.getAndIncrement(this) == 0) {
+            if (counter.getAndIncrement() == 0) {
                 recursiveScheduler.schedule(action);
             }
         }
@@ -182,9 +176,9 @@ public final class OperatorObserveOn<T> implements Operator<T, T> {
         void pollQueue() {
             int emitted = 0;
             do {
-                counter = 1;
+                counter.set(1);
                 long produced = 0;
-                long r = requested;
+                long r = requested.get();
                 for (;;) {
                     if (child.isUnsubscribed())
                         return;
@@ -216,10 +210,10 @@ public final class OperatorObserveOn<T> implements Operator<T, T> {
                         break;
                     }
                 }
-                if (produced > 0 && requested != Long.MAX_VALUE) {
-                    REQUESTED.addAndGet(this, -produced);
+                if (produced > 0 && requested.get() != Long.MAX_VALUE) {
+                    requested.addAndGet(-produced);
                 }
-            } while (COUNTER_UPDATER.decrementAndGet(this) > 0);
+            } while (counter.decrementAndGet() > 0);
             if (emitted > 0) {
                 request(emitted);
             }
@@ -228,8 +222,7 @@ public final class OperatorObserveOn<T> implements Operator<T, T> {
 
     static final class ScheduledUnsubscribe implements Subscription {
         final Scheduler.Worker worker;
-        volatile int once;
-        static final AtomicIntegerFieldUpdater<ScheduledUnsubscribe> ONCE_UPDATER = AtomicIntegerFieldUpdater.newUpdater(ScheduledUnsubscribe.class, "once");
+        AtomicInteger once = new AtomicInteger();
         volatile boolean unsubscribed = false;
 
         public ScheduledUnsubscribe(Scheduler.Worker worker) {
@@ -243,7 +236,7 @@ public final class OperatorObserveOn<T> implements Operator<T, T> {
 
         @Override
         public void unsubscribe() {
-            if (ONCE_UPDATER.getAndSet(this, 1) == 0) {
+            if (once.getAndSet(1) == 0) {
                 worker.schedule(new Action0() {
                     @Override
                     public void call() {

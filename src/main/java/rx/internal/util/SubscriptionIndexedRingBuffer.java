@@ -15,7 +15,7 @@
  */
 package rx.internal.util;
 
-import java.util.concurrent.atomic.AtomicIntegerFieldUpdater;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import rx.Subscription;
 import rx.functions.Func1;
@@ -28,16 +28,14 @@ import rx.functions.Func1;
 public final class SubscriptionIndexedRingBuffer<T extends Subscription> implements Subscription {
 
     private volatile IndexedRingBuffer<T> subscriptions = IndexedRingBuffer.getInstance();
-    private volatile int unsubscribed = 0;
-    @SuppressWarnings("rawtypes")
-    private final static AtomicIntegerFieldUpdater<SubscriptionIndexedRingBuffer> UNSUBSCRIBED = AtomicIntegerFieldUpdater.newUpdater(SubscriptionIndexedRingBuffer.class, "unsubscribed");
+    private AtomicInteger unsubscribed = new AtomicInteger();
 
     public SubscriptionIndexedRingBuffer() {
     }
 
     @Override
     public boolean isUnsubscribed() {
-        return unsubscribed == 1;
+        return unsubscribed.get() == 1;
     }
 
     /**
@@ -52,13 +50,13 @@ public final class SubscriptionIndexedRingBuffer<T extends Subscription> impleme
      */
     public synchronized int add(final T s) {
         // TODO figure out how to remove synchronized here. See https://github.com/ReactiveX/RxJava/issues/1420
-        if (unsubscribed == 1 || subscriptions == null) {
+        if (unsubscribed.get() == 1 || subscriptions == null) {
             s.unsubscribe();
             return -1;
         } else {
             int n = subscriptions.add(s);
             // double check for race condition
-            if (unsubscribed == 1) {
+            if (unsubscribed.get() == 1) {
                 s.unsubscribe();
             }
             return n;
@@ -71,7 +69,7 @@ public final class SubscriptionIndexedRingBuffer<T extends Subscription> impleme
      * Unsubscribes the Subscription after removal
      */
     public void remove(final int n) {
-        if (unsubscribed == 1 || subscriptions == null || n < 0) {
+        if (unsubscribed.get() == 1 || subscriptions == null || n < 0) {
             return;
         }
         Subscription t = subscriptions.remove(n);
@@ -89,7 +87,7 @@ public final class SubscriptionIndexedRingBuffer<T extends Subscription> impleme
      * Does not unsubscribe the Subscription after removal.
      */
     public void removeSilently(final int n) {
-        if (unsubscribed == 1 || subscriptions == null || n < 0) {
+        if (unsubscribed.get() == 1 || subscriptions == null || n < 0) {
             return;
         }
         subscriptions.remove(n);
@@ -97,7 +95,7 @@ public final class SubscriptionIndexedRingBuffer<T extends Subscription> impleme
 
     @Override
     public void unsubscribe() {
-        if (UNSUBSCRIBED.compareAndSet(this, 0, 1) && subscriptions != null) {
+        if (unsubscribed.compareAndSet(0, 1) && subscriptions != null) {
             // we will only get here once
             unsubscribeFromAll(subscriptions);
 
@@ -118,7 +116,7 @@ public final class SubscriptionIndexedRingBuffer<T extends Subscription> impleme
      */
     public synchronized int forEach(Func1<T, Boolean> action, int startIndex) {
         // TODO figure out how to remove synchronized here. See https://github.com/ReactiveX/RxJava/issues/1420
-        if (unsubscribed == 1 || subscriptions == null) {
+        if (unsubscribed.get() == 1 || subscriptions == null) {
             return 0;
         }
         return subscriptions.forEach(action, startIndex);

@@ -15,7 +15,7 @@
  */
 package rx.internal.util;
 
-import java.util.concurrent.atomic.AtomicLongFieldUpdater;
+import java.util.concurrent.atomic.AtomicLong;
 
 import rx.Producer;
 import rx.annotations.Experimental;
@@ -62,10 +62,7 @@ public final class BackpressureDrainManager implements Producer {
     }
 
     /** The request counter, updated via REQUESTED_COUNTER. */
-    protected volatile long requestedCount;
-    /** Atomically updates the the requestedCount field. */ 
-    protected static final AtomicLongFieldUpdater<BackpressureDrainManager> REQUESTED_COUNT
-    = AtomicLongFieldUpdater.newUpdater(BackpressureDrainManager.class, "requestedCount");
+    protected AtomicLong requestedCount = new AtomicLong();
     /** Indicates if one is in emitting phase, guarded by this. */
     protected boolean emitting;
     /** Indicates a terminal state. */
@@ -138,7 +135,7 @@ public final class BackpressureDrainManager implements Producer {
         long r;
         long u;
         do {
-            r = requestedCount;
+            r = requestedCount.get();
             mayDrain = r == 0;
             if (r == Long.MAX_VALUE) {
                 break;
@@ -153,7 +150,7 @@ public final class BackpressureDrainManager implements Producer {
                     u = r + n;
                 }
             }
-        } while (!REQUESTED_COUNT.compareAndSet(this, r, u));
+        } while (!requestedCount.compareAndSet(r, u));
         // since we implement producer, we have to call drain
         // on a 0-n request transition
         if (mayDrain) {
@@ -174,7 +171,7 @@ public final class BackpressureDrainManager implements Producer {
             emitting = true;
             term = terminated;
         }
-        n = requestedCount;
+        n = requestedCount.get();
         boolean skipFinal = false;
         try {
             BackpressureQueueCallback a = actual;
@@ -210,7 +207,7 @@ public final class BackpressureDrainManager implements Producer {
                     term = terminated;
                     boolean more = a.peek() != null;
                     // if no backpressure below
-                    if (requestedCount == Long.MAX_VALUE) {
+                    if (requestedCount.get() == Long.MAX_VALUE) {
                         // no new data arrived since the last poll
                         if (!more && !term) {
                             skipFinal = true;
@@ -219,7 +216,7 @@ public final class BackpressureDrainManager implements Producer {
                         }
                         n = Long.MAX_VALUE;
                     } else {
-                        n = REQUESTED_COUNT.addAndGet(this, -emitted);
+                        n = requestedCount.addAndGet(-emitted);
                         if ((n == 0 || !more) && (!term || more)) {
                             skipFinal = true;
                             emitting = false;

@@ -16,7 +16,7 @@
 
 package rx.internal.util;
 
-import java.util.concurrent.atomic.AtomicIntegerFieldUpdater;
+import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * The atomic integer base padded at the front.
@@ -26,55 +26,49 @@ abstract class PaddedAtomicIntegerBase extends FrontPadding {
 
     private static final long serialVersionUID = 6513142711280243198L;
 
-    private static final AtomicIntegerFieldUpdater<PaddedAtomicIntegerBase> updater;
-
-    static {
-        updater = AtomicIntegerFieldUpdater.newUpdater(PaddedAtomicIntegerBase.class, "value");
-    }
-
-    private volatile int value; // 8-byte object field (or 4-byte + padding)
+    private AtomicInteger value = new AtomicInteger(); // 8-byte object field (or 4-byte + padding)
 
     public final int get() {
-        return value;
+        return value.get();
     }
 
     public final void set(int newValue) {
-        this.value = newValue;
+        this.value.set(newValue);
     }
 
     public final void lazySet(int newValue) {
-        updater.lazySet(this, newValue);
+        value.lazySet(newValue);
     }
 
     public final boolean compareAndSet(int expect, int update) {
-        return updater.compareAndSet(this, expect, update);
+        return value.compareAndSet(expect, update);
     }
 
     public final boolean weakCompareAndSet(int expect, int update) {
-        return updater.weakCompareAndSet(this, expect, update);
+        return value.weakCompareAndSet(expect, update);
     }
 
     public final int getAndSet(int newValue) {
-        return updater.getAndSet(this, value);
+        return value.getAndSet(newValue);
     }
 
     public final int getAndAdd(int delta) {
-        return updater.getAndAdd(this, delta);
+        return value.getAndAdd(delta);
     }
     public final int incrementAndGet() {
-        return updater.incrementAndGet(this);
+        return value.incrementAndGet();
     }
     public final int decrementAndGet() {
-        return updater.decrementAndGet(this);
+        return value.decrementAndGet();
     }
     public final int getAndIncrement() {
-        return updater.getAndIncrement(this);
+        return value.getAndIncrement();
     }
     public final int getAndDecrement() {
-        return updater.getAndDecrement(this);
+        return value.getAndDecrement();
     }
     public final int addAndGet(int delta) {
-        return updater.addAndGet(this, delta);
+        return value.addAndGet(delta);
     }
     
     @Override

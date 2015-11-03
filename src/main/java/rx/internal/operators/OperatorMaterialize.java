@@ -15,7 +15,7 @@
  */
 package rx.internal.operators;
 
-import java.util.concurrent.atomic.AtomicLongFieldUpdater;
+import java.util.concurrent.atomic.AtomicLong;
 
 import rx.Notification;
 import rx.Observable.Operator;
@@ -76,10 +76,7 @@ public final class OperatorMaterialize<T> implements Operator<Notification<T>, T
         // guarded by this
         private boolean missed = false;
 
-        private volatile long requested;
-        @SuppressWarnings("rawtypes")
-        private static final AtomicLongFieldUpdater<ParentSubscriber> REQUESTED = AtomicLongFieldUpdater
-                .newUpdater(ParentSubscriber.class, "requested");
+        private AtomicLong requested = new AtomicLong();
 
         ParentSubscriber(Subscriber<? super Notification<T>> child) {
             this.child = child;
@@ -91,7 +88,7 @@ public final class OperatorMaterialize<T> implements Operator<Notification<T>, T
         }
 
         void requestMore(long n) {
-            BackpressureUtils.getAndAddRequest(REQUESTED, this, n);
+            BackpressureUtils.getAndAddRequest(requested, n);
             request(n);
             drain();
         }
@@ -118,11 +115,11 @@ public final class OperatorMaterialize<T> implements Operator<Notification<T>, T
         private void decrementRequested() {
             // atomically decrement requested
             while (true) {
-                long r = requested;
+                long r = requested.get();
                 if (r == Long.MAX_VALUE) {
                     // don't decrement if unlimited requested
                     return;
-                } else if (REQUESTED.compareAndSet(this, r, r - 1)) {
+                } else if (requested.compareAndSet(r, r - 1)) {
                     return;
                 }
             }
@@ -141,7 +138,7 @@ public final class OperatorMaterialize<T> implements Operator<Notification<T>, T
                 Notification<T> tn;
                 tn = terminalNotification;
                 if (tn != null) {
-                    if (requested > 0) {
+                    if (requested.get() > 0) {
                         // allow tn to be GC'd after the onNext call
                         terminalNotification = null;
                         // emit the terminal notification

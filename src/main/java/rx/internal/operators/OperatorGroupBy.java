@@ -19,9 +19,8 @@ import java.util.Queue;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicIntegerFieldUpdater;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
-import java.util.concurrent.atomic.AtomicLongFieldUpdater;
 
 import rx.Observable;
 import rx.Observable.OnSubscribe;
@@ -80,9 +79,7 @@ public class OperatorGroupBy<T, K, R> implements Operator<GroupedObservable<K, R
         // We should not call `unsubscribe()` until `groups.isEmpty() && child.isUnsubscribed()` is true.
         // Use `WIP_FOR_UNSUBSCRIBE_UPDATER` to monitor these statuses and call `unsubscribe()` properly.
         // Should check both when `child.unsubscribe` is called and any group is removed.
-        @SuppressWarnings("rawtypes")
-        static final AtomicIntegerFieldUpdater<GroupBySubscriber> WIP_FOR_UNSUBSCRIBE_UPDATER = AtomicIntegerFieldUpdater.newUpdater(GroupBySubscriber.class, "wipForUnsubscribe");
-        volatile int wipForUnsubscribe = 1;
+        AtomicInteger wipForUnsubscribe = new AtomicInteger(1);
 
         public GroupBySubscriber(
                 Func1<? super T, ? extends K> keySelector,
@@ -96,7 +93,7 @@ public class OperatorGroupBy<T, K, R> implements Operator<GroupedObservable<K, R
 
                 @Override
                 public void call() {
-                    if (WIP_FOR_UNSUBSCRIBE_UPDATER.decrementAndGet(self) == 0) {
+                    if (wipForUnsubscribe.decrementAndGet() == 0) {
                         self.unsubscribe();
                     }
                 }
@@ -124,37 +121,28 @@ public class OperatorGroupBy<T, K, R> implements Operator<GroupedObservable<K, R
 
         private static final NotificationLite<Object> nl = NotificationLite.instance();
 
-        volatile int completionEmitted;
+        AtomicInteger completionEmitted = new AtomicInteger();
 
         private static final int UNTERMINATED = 0;
         private static final int TERMINATED_WITH_COMPLETED = 1;
         private static final int TERMINATED_WITH_ERROR = 2;
 
         // Must be one of `UNTERMINATED`, `TERMINATED_WITH_COMPLETED`, `TERMINATED_WITH_ERROR`
-        volatile int terminated = UNTERMINATED;
+        AtomicInteger terminated = new AtomicInteger(UNTERMINATED);
 
-        @SuppressWarnings("rawtypes")
-        static final AtomicIntegerFieldUpdater<GroupBySubscriber> COMPLETION_EMITTED_UPDATER = AtomicIntegerFieldUpdater.newUpdater(GroupBySubscriber.class, "completionEmitted");
-        @SuppressWarnings("rawtypes")
-        static final AtomicIntegerFieldUpdater<GroupBySubscriber> TERMINATED_UPDATER = AtomicIntegerFieldUpdater.newUpdater(GroupBySubscriber.class, "terminated");
+        AtomicLong requested = new AtomicLong();
 
-        volatile long requested;
-        @SuppressWarnings("rawtypes")
-        static final AtomicLongFieldUpdater<GroupBySubscriber> REQUESTED = AtomicLongFieldUpdater.newUpdater(GroupBySubscriber.class, "requested");
-
-        volatile long bufferedCount;
-        @SuppressWarnings("rawtypes")
-        static final AtomicLongFieldUpdater<GroupBySubscriber> BUFFERED_COUNT = AtomicLongFieldUpdater.newUpdater(GroupBySubscriber.class, "bufferedCount");
+        AtomicLong bufferedCount = new AtomicLong();
 
         @Override
         public void onStart() {
-            REQUESTED.set(this, MAX_QUEUE_SIZE);
+            requested.set(MAX_QUEUE_SIZE);
             request(MAX_QUEUE_SIZE);
         }
 
         @Override
         public void onCompleted() {
-            if (TERMINATED_UPDATER.compareAndSet(this, UNTERMINATED, TERMINATED_WITH_COMPLETED)) {
+            if (terminated.compareAndSet(UNTERMINATED, TERMINATED_WITH_COMPLETED)) {
                 // if we receive onCompleted from our parent we onComplete children
                 // for each group check if it is ready to accept more events if so pass the oncomplete through else buffer it.
                 for (GroupState<K, T> group : groups.values()) {
@@ -164,7 +152,7 @@ public class OperatorGroupBy<T, K, R> implements Operator<GroupedObservable<K, R
                 // special case (no groups emitted ... or all unsubscribed)
                 if (groups.isEmpty()) {
                     // we must track 'completionEmitted' seperately from 'completed' since `completeInner` can result in childObserver.onCompleted() being emitted
-                    if (COMPLETION_EMITTED_UPDATER.compareAndSet(this, 0, 1)) {
+                    if (completionEmitted.compareAndSet(0, 1)) {
                         child.onCompleted();
                     }
                 }
@@ -173,7 +161,7 @@ public class OperatorGroupBy<T, K, R> implements Operator<GroupedObservable<K, R
 
         @Override
         public void onError(Throwable e) {
-            if (TERMINATED_UPDATER.compareAndSet(this, UNTERMINATED, TERMINATED_WITH_ERROR)) {
+            if (terminated.compareAndSet(UNTERMINATED, TERMINATED_WITH_ERROR)) {
                 // It's safe to access all groups and emit the error.
                 // onNext and onError are in sequence so no group will be created in the loop.
                 for (GroupState<K, T> group : groups.values()) {
@@ -293,11 +281,11 @@ public class OperatorGroupBy<T, K, R> implements Operator<GroupedObservable<K, R
 
             GroupState<K, T> putIfAbsent;
             for (;;) {
-                int wip = wipForUnsubscribe;
+                int wip = wipForUnsubscribe.get();
                 if (wip <= 0) {
                     return null;
                 }
-                if (WIP_FOR_UNSUBSCRIBE_UPDATER.compareAndSet(this, wip, wip + 1)) {
+                if (wipForUnsubscribe.compareAndSet(wip, wip + 1)) {
                     putIfAbsent = groups.putIfAbsent(key, groupState);
                     break;
                 }
@@ -316,7 +304,7 @@ public class OperatorGroupBy<T, K, R> implements Operator<GroupedObservable<K, R
             removed = groups.remove(key);
             if (removed != null) {
                 if (!removed.buffer.isEmpty()) {
-                    BUFFERED_COUNT.addAndGet(self, -removed.buffer.size());
+                    bufferedCount.addAndGet(-removed.buffer.size());
                 }
                 completeInner();
                 // since we may have unsubscribed early with items in the buffer 
@@ -331,7 +319,7 @@ public class OperatorGroupBy<T, K, R> implements Operator<GroupedObservable<K, R
             AtomicLong keyRequested = groupState.requested;
             //don't need to check for requested being Long.MAX_VALUE because this
             //field is capped at MAX_QUEUE_SIZE
-            REQUESTED.decrementAndGet(this);
+            requested.decrementAndGet();
             // short circuit buffering
             if (keyRequested != null && keyRequested.get() > 0 && (q == null || q.isEmpty())) {
                 @SuppressWarnings("unchecked")
@@ -344,7 +332,7 @@ public class OperatorGroupBy<T, K, R> implements Operator<GroupedObservable<K, R
                 }
             } else {
                 q.add(item);
-                BUFFERED_COUNT.incrementAndGet(this);
+                bufferedCount.incrementAndGet();
 
                 if (groupState.count.getAndIncrement() == 0) {
                     pollQueue(groupState);
@@ -371,9 +359,9 @@ public class OperatorGroupBy<T, K, R> implements Operator<GroupedObservable<K, R
         }
 
         private void requestMoreIfNecessary() {
-            if (REQUESTED.get(this) == 0 && terminated == 0) {
-                long toRequest = MAX_QUEUE_SIZE - BUFFERED_COUNT.get(this);
-                if (toRequest > 0 && REQUESTED.compareAndSet(this, 0, toRequest)) {
+            if (requested.get() == 0 && terminated.get() == 0) {
+                long toRequest = MAX_QUEUE_SIZE - bufferedCount.get();
+                if (toRequest > 0 && requested.compareAndSet(0, toRequest)) {
                     request(toRequest);
                 }
             }
@@ -391,7 +379,7 @@ public class OperatorGroupBy<T, K, R> implements Operator<GroupedObservable<K, R
                         // the initial request being Long.MAX_VALUE and that value being conserved.
                         groupState.requested.decrementAndGet();
                     }
-                    BUFFERED_COUNT.decrementAndGet(this);
+                    bufferedCount.decrementAndGet();
 
                     // if we have used up all the events we requested from upstream then figure out what to ask for this time based on the empty space in the buffer
                     requestMoreIfNecessary();
@@ -404,13 +392,13 @@ public class OperatorGroupBy<T, K, R> implements Operator<GroupedObservable<K, R
 
         private void completeInner() {
             // A group is removed, so check if we need to call `unsubscribe`
-            if (WIP_FOR_UNSUBSCRIBE_UPDATER.decrementAndGet(this) == 0) {
+            if (wipForUnsubscribe.decrementAndGet() == 0) {
                 // It means `groups.isEmpty() && child.isUnsubscribed()` is true
                 unsubscribe();
-            } else if (groups.isEmpty() && terminated == TERMINATED_WITH_COMPLETED) {
+            } else if (groups.isEmpty() && terminated.get() == TERMINATED_WITH_COMPLETED) {
                 // if we have no outstanding groups (all completed or unsubscribe) and terminated on outer
                 // completionEmitted ensures we only emit onCompleted once
-                if (COMPLETION_EMITTED_UPDATER.compareAndSet(this, 0, 1)) {
+                if (completionEmitted.compareAndSet(0, 1)) {
                     child.onCompleted();
                 }
             }

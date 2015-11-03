@@ -16,7 +16,6 @@
 package rx.internal.operators;
 
 import java.util.concurrent.atomic.AtomicLong;
-import java.util.concurrent.atomic.AtomicLongFieldUpdater;
 
 import rx.Observable;
 import rx.Observable.Operator;
@@ -181,9 +180,7 @@ public final class OperatorZip<R> implements Operator<R, Observable<?>[]> {
         private final CompositeSubscription childSubscription = new CompositeSubscription();
 
         @SuppressWarnings("unused")
-        volatile long counter;
-        @SuppressWarnings("rawtypes")
-        static final AtomicLongFieldUpdater<Zip> COUNTER_UPDATER = AtomicLongFieldUpdater.newUpdater(Zip.class, "counter");
+        AtomicLong counter = new AtomicLong();
 
         static final int THRESHOLD = (int) (RxRingBuffer.SIZE * 0.7);
         int emitted = 0; // not volatile/synchronized as accessed inside COUNTER_UPDATER block
@@ -227,7 +224,7 @@ public final class OperatorZip<R> implements Operator<R, Observable<?>[]> {
                 // nothing yet to do (initial request from Producer)
                 return;
             }
-            if (COUNTER_UPDATER.getAndIncrement(this) == 0) {
+            if (counter.getAndIncrement() == 0) {
                 final int length = observers.length;
                 final Observer<? super R> child = this.child;
                 final AtomicLong requested = this.requested;
@@ -290,7 +287,7 @@ public final class OperatorZip<R> implements Operator<R, Observable<?>[]> {
                             break;
                         }
                     }
-                } while (COUNTER_UPDATER.decrementAndGet(this) > 0);
+                } while (counter.decrementAndGet() > 0);
             }
 
         }

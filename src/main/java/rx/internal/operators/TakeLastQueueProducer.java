@@ -16,12 +16,12 @@
 package rx.internal.operators;
 
 
+import java.util.Deque;
+import java.util.concurrent.atomic.AtomicLong;
+
 import rx.Producer;
 import rx.Subscriber;
 import rx.exceptions.Exceptions;
-
-import java.util.Deque;
-import java.util.concurrent.atomic.AtomicLongFieldUpdater;
 
 final class TakeLastQueueProducer<T> implements Producer {
 
@@ -36,9 +36,7 @@ final class TakeLastQueueProducer<T> implements Producer {
         this.subscriber = subscriber;
     }
 
-    private volatile long requested = 0;
-    @SuppressWarnings("rawtypes")
-    private static final AtomicLongFieldUpdater<TakeLastQueueProducer> REQUESTED_UPDATER = AtomicLongFieldUpdater.newUpdater(TakeLastQueueProducer.class, "requested");
+    private AtomicLong requested = new AtomicLong();
 
     void startEmitting() {
         if (!emittingStarted) {
@@ -49,14 +47,14 @@ final class TakeLastQueueProducer<T> implements Producer {
 
     @Override
     public void request(long n) {
-        if (requested == Long.MAX_VALUE) {
+        if (requested.get() == Long.MAX_VALUE) {
             return;
         }
         long _c;
         if (n == Long.MAX_VALUE) {
-            _c = REQUESTED_UPDATER.getAndSet(this, Long.MAX_VALUE);
+            _c = requested.getAndSet(Long.MAX_VALUE);
         } else {
-            _c = BackpressureUtils.getAndAddRequest(REQUESTED_UPDATER, this, n);
+            _c = BackpressureUtils.getAndAddRequest(requested, n);
         }
         if (!emittingStarted) {
             // we haven't started yet, so record what was requested and return
@@ -66,7 +64,7 @@ final class TakeLastQueueProducer<T> implements Producer {
     }
 
     void emit(long previousRequested) {
-        if (requested == Long.MAX_VALUE) {
+        if (requested.get() == Long.MAX_VALUE) {
             // fast-path without backpressure
             if (previousRequested == 0) {
                 try {
@@ -91,7 +89,7 @@ final class TakeLastQueueProducer<T> implements Producer {
                          * This complicated logic is done to avoid touching the volatile `requested` value
                          * during the loop itself. If it is touched during the loop the performance is impacted significantly.
                          */
-                    long numToEmit = requested;
+                    long numToEmit = requested.get();
                     int emitted = 0;
                     Object o;
                     while (--numToEmit >= 0 && (o = deque.poll()) != null) {
@@ -106,14 +104,14 @@ final class TakeLastQueueProducer<T> implements Producer {
                         }
                     }
                     for (; ; ) {
-                        long oldRequested = requested;
+                        long oldRequested = requested.get();
                         long newRequested = oldRequested - emitted;
                         if (oldRequested == Long.MAX_VALUE) {
                             // became unbounded during the loop
                             // continue the outer loop to emit the rest events.
                             break;
                         }
-                        if (REQUESTED_UPDATER.compareAndSet(this, oldRequested, newRequested)) {
+                        if (requested.compareAndSet(oldRequested, newRequested)) {
                             if (newRequested == 0) {
                                 // we're done emitting the number requested so return
                                 return;

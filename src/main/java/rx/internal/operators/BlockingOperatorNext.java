@@ -19,7 +19,7 @@ import java.util.Iterator;
 import java.util.NoSuchElementException;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
-import java.util.concurrent.atomic.AtomicIntegerFieldUpdater;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import rx.Notification;
 import rx.Observable;
@@ -148,10 +148,7 @@ public final class BlockingOperatorNext {
     private static class NextObserver<T> extends Subscriber<Notification<? extends T>> {
         private final BlockingQueue<Notification<? extends T>> buf = new ArrayBlockingQueue<Notification<? extends T>>(1);
         @SuppressWarnings("unused")
-        volatile int waiting;
-        @SuppressWarnings("rawtypes")
-        static final AtomicIntegerFieldUpdater<NextObserver> WAITING_UPDATER
-                = AtomicIntegerFieldUpdater.newUpdater(NextObserver.class, "waiting");
+        AtomicInteger waiting = new AtomicInteger();
 
         @Override
         public void onCompleted() {
@@ -166,7 +163,7 @@ public final class BlockingOperatorNext {
         @Override
         public void onNext(Notification<? extends T> args) {
 
-            if (WAITING_UPDATER.getAndSet(this, 0) == 1 || !args.isOnNext()) {
+            if (waiting.getAndSet(0) == 1 || !args.isOnNext()) {
                 Notification<? extends T> toOffer = args;
                 while (!buf.offer(toOffer)) {
                     Notification<? extends T> concurrentItem = buf.poll();
@@ -185,7 +182,7 @@ public final class BlockingOperatorNext {
             return buf.take();
         }
         void setWaiting(int value) {
-            waiting = value;
+            waiting.set(value);
         }
     }
 }

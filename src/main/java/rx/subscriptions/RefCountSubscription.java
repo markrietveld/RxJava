@@ -15,8 +15,8 @@
  */
 package rx.subscriptions;
 
-import java.util.concurrent.atomic.AtomicIntegerFieldUpdater;
-import java.util.concurrent.atomic.AtomicReferenceFieldUpdater;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 
 import rx.Subscription;
 
@@ -27,9 +27,7 @@ import rx.Subscription;
 public final class RefCountSubscription implements Subscription {
     private final Subscription actual;
     static final State EMPTY_STATE = new State(false, 0);
-    volatile State state = EMPTY_STATE;
-    static final AtomicReferenceFieldUpdater<RefCountSubscription, State> STATE_UPDATER
-            = AtomicReferenceFieldUpdater.newUpdater(RefCountSubscription.class, State.class, "state");
+    AtomicReference<State> state = new AtomicReference<State>(EMPTY_STATE);
 
     private static final class State {
         final boolean isUnsubscribed;
@@ -78,20 +76,20 @@ public final class RefCountSubscription implements Subscription {
         State oldState;
         State newState;
         do {
-            oldState = state;
+            oldState = state.get();
             if (oldState.isUnsubscribed) {
                 return Subscriptions.unsubscribed();
             } else {
                 newState = oldState.addChild();
             }
-        } while (!STATE_UPDATER.compareAndSet(this, oldState, newState));
+        } while (!state.compareAndSet(oldState, newState));
 
         return new InnerSubscription(this);
     }
 
     @Override
     public boolean isUnsubscribed() {
-        return state.isUnsubscribed;
+        return state.get().isUnsubscribed;
     }
 
     @Override
@@ -99,12 +97,12 @@ public final class RefCountSubscription implements Subscription {
         State oldState;
         State newState;
         do {
-            oldState = state;
+            oldState = state.get();
             if (oldState.isUnsubscribed) {
                 return;
             }
             newState = oldState.unsubscribe();
-        } while (!STATE_UPDATER.compareAndSet(this, oldState, newState));
+        } while (!state.compareAndSet(oldState, newState));
         unsubscribeActualIfApplicable(newState);
     }
 
@@ -117,31 +115,29 @@ public final class RefCountSubscription implements Subscription {
         State oldState;
         State newState;
         do {
-            oldState = state;
+            oldState = state.get();
             newState = oldState.removeChild();
-        } while (!STATE_UPDATER.compareAndSet(this, oldState, newState));
+        } while (!state.compareAndSet(oldState, newState));
         unsubscribeActualIfApplicable(newState);
     }
 
     /** The individual sub-subscriptions. */
     private static final class InnerSubscription implements Subscription {
         final RefCountSubscription parent;
-        volatile int innerDone;
-        static final AtomicIntegerFieldUpdater<InnerSubscription> INNER_DONE_UPDATER
-                = AtomicIntegerFieldUpdater.newUpdater(InnerSubscription.class, "innerDone");
+        AtomicInteger innerDone = new AtomicInteger();
         public InnerSubscription(RefCountSubscription parent) {
             this.parent = parent;
         }
         @Override
         public void unsubscribe() {
-            if (INNER_DONE_UPDATER.compareAndSet(this, 0, 1)) {
+            if (innerDone.compareAndSet(0, 1)) {
                 parent.unsubscribeAChild();
             }
         }
 
         @Override
         public boolean isUnsubscribed() {
-            return innerDone != 0;
+            return innerDone.get() != 0;
         }
     };
 }
