@@ -23,7 +23,7 @@ import rx.Producer;
 import rx.Subscriber;
 import rx.exceptions.Exceptions;
 
-final class TakeLastQueueProducer<T> implements Producer {
+final class TakeLastQueueProducer<T> extends AtomicLong implements Producer {
 
     private final NotificationLite<T> notification;
     private final Deque<Object> deque;
@@ -36,8 +36,6 @@ final class TakeLastQueueProducer<T> implements Producer {
         this.subscriber = subscriber;
     }
 
-    private AtomicLong requested = new AtomicLong();
-
     void startEmitting() {
         if (!emittingStarted) {
             emittingStarted = true;
@@ -47,14 +45,14 @@ final class TakeLastQueueProducer<T> implements Producer {
 
     @Override
     public void request(long n) {
-        if (requested.get() == Long.MAX_VALUE) {
+        if (get() == Long.MAX_VALUE) {
             return;
         }
         long _c;
         if (n == Long.MAX_VALUE) {
-            _c = requested.getAndSet(Long.MAX_VALUE);
+            _c = getAndSet(Long.MAX_VALUE);
         } else {
-            _c = BackpressureUtils.getAndAddRequest(requested, n);
+            _c = BackpressureUtils.getAndAddRequest(this, n);
         }
         if (!emittingStarted) {
             // we haven't started yet, so record what was requested and return
@@ -64,7 +62,7 @@ final class TakeLastQueueProducer<T> implements Producer {
     }
 
     void emit(long previousRequested) {
-        if (requested.get() == Long.MAX_VALUE) {
+        if (get() == Long.MAX_VALUE) {
             // fast-path without backpressure
             if (previousRequested == 0) {
                 try {
@@ -89,7 +87,7 @@ final class TakeLastQueueProducer<T> implements Producer {
                          * This complicated logic is done to avoid touching the volatile `requested` value
                          * during the loop itself. If it is touched during the loop the performance is impacted significantly.
                          */
-                    long numToEmit = requested.get();
+                    long numToEmit = get();
                     int emitted = 0;
                     Object o;
                     while (--numToEmit >= 0 && (o = deque.poll()) != null) {
@@ -104,14 +102,14 @@ final class TakeLastQueueProducer<T> implements Producer {
                         }
                     }
                     for (; ; ) {
-                        long oldRequested = requested.get();
+                        long oldRequested = get();
                         long newRequested = oldRequested - emitted;
                         if (oldRequested == Long.MAX_VALUE) {
                             // became unbounded during the loop
                             // continue the outer loop to emit the rest events.
                             break;
                         }
-                        if (requested.compareAndSet(oldRequested, newRequested)) {
+                        if (compareAndSet(oldRequested, newRequested)) {
                             if (newRequested == 0) {
                                 // we're done emitting the number requested so return
                                 return;

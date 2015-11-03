@@ -210,19 +210,18 @@ public final class OperatorObserveOn<T> implements Operator<T, T> {
                         break;
                     }
                 }
-                if (produced > 0 && requested.get() != Long.MAX_VALUE) {
-                    requested.addAndGet(-produced);
+                if (produced > 0 && localRequested.get() != Long.MAX_VALUE) {
+                    localRequested.addAndGet(-produced);
                 }
-            } while (counter.decrementAndGet() > 0);
+            } while (localCounter.decrementAndGet() > 0);
             if (emitted > 0) {
                 request(emitted);
             }
         }
     }
 
-    static final class ScheduledUnsubscribe implements Subscription {
+    static final class ScheduledUnsubscribe extends AtomicInteger implements Subscription {
         final Scheduler.Worker worker;
-        AtomicInteger once = new AtomicInteger();
         volatile boolean unsubscribed = false;
 
         public ScheduledUnsubscribe(Scheduler.Worker worker) {
@@ -236,7 +235,7 @@ public final class OperatorObserveOn<T> implements Operator<T, T> {
 
         @Override
         public void unsubscribe() {
-            if (once.getAndSet(1) == 0) {
+            if (getAndSet(1) == 0) {
                 worker.schedule(new Action0() {
                     @Override
                     public void call() {

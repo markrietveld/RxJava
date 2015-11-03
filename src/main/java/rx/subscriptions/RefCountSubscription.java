@@ -122,22 +122,21 @@ public final class RefCountSubscription implements Subscription {
     }
 
     /** The individual sub-subscriptions. */
-    private static final class InnerSubscription implements Subscription {
+    private static final class InnerSubscription extends AtomicInteger implements Subscription {
         final RefCountSubscription parent;
-        AtomicInteger innerDone = new AtomicInteger();
         public InnerSubscription(RefCountSubscription parent) {
             this.parent = parent;
         }
         @Override
         public void unsubscribe() {
-            if (innerDone.compareAndSet(0, 1)) {
+            if (compareAndSet(0, 1)) {
                 parent.unsubscribeAChild();
             }
         }
 
         @Override
         public boolean isUnsubscribed() {
-            return innerDone.get() != 0;
+            return get() != 0;
         }
     };
 }

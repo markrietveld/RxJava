@@ -412,7 +412,7 @@ public final class ReplaySubject<T> extends Subject<T, T> {
      * @return Returns the number of subscribers.
      */
     /* Support test. */int subscriberCount() {
-        return ssm.state.get().observers.length;
+        return ssm.get().observers.length;
     }
 
     @Override
@@ -441,14 +441,12 @@ public final class ReplaySubject<T> extends Subject<T, T> {
      * The unbounded replay state.
      * @param <T> the input and output type
      */
-    static final class UnboundedReplayState<T> implements ReplayState<T, Integer> {
+    static final class UnboundedReplayState<T> extends AtomicInteger implements ReplayState<T, Integer> {
         private final NotificationLite<T> nl = NotificationLite.instance();
         /** The buffer. */
         private final ArrayList<Object> list;
         /** The termination flag. */
         private volatile boolean terminated;
-        /** The size of the buffer. */
-        AtomicInteger index = new AtomicInteger();
         public UnboundedReplayState(int initialCapacity) {
             list = new ArrayList<Object>(initialCapacity);
         }
@@ -457,7 +455,7 @@ public final class ReplaySubject<T> extends Subject<T, T> {
         public void next(T n) {
             if (!terminated) {
                 list.add(nl.next(n));
-                index.getAndIncrement(); // release index
+                getAndIncrement(); // release index
             }
         }
 
@@ -470,7 +468,7 @@ public final class ReplaySubject<T> extends Subject<T, T> {
             if (!terminated) {
                 terminated = true;
                 list.add(nl.completed());
-                index.getAndIncrement(); // release index
+                getAndIncrement(); // release index
             }
         }
         @Override
@@ -478,7 +476,7 @@ public final class ReplaySubject<T> extends Subject<T, T> {
             if (!terminated) {
                 terminated = true;
                 list.add(nl.error(e));
-                index.getAndIncrement(); // release index
+                getAndIncrement(); // release index
             }
         }
 
@@ -510,7 +508,7 @@ public final class ReplaySubject<T> extends Subject<T, T> {
         @Override
         public Integer replayObserverFromIndex(Integer idx, SubjectObserver<? super T> observer) {
             int i = idx;
-            while (i < index.get()) {
+            while (i < get()) {
                 accept(observer, i);
                 i++;
             }
@@ -525,7 +523,7 @@ public final class ReplaySubject<T> extends Subject<T, T> {
         
         @Override
         public int size() {
-            int idx = index.get(); // aquire
+            int idx = get(); // aquire
             if (idx > 0) {
                 Object o = list.get(idx - 1);
                 if (nl.isCompleted(o) || nl.isError(o)) {
@@ -560,7 +558,7 @@ public final class ReplaySubject<T> extends Subject<T, T> {
         }
         @Override
         public T latest() {
-            int idx = index.get();
+            int idx = get();
             if (idx > 0) {
                 Object o = list.get(idx - 1);
                 if (nl.isCompleted(o) || nl.isError(o)) {

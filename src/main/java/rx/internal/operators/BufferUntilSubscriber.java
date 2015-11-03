@@ -59,11 +59,9 @@ public final class BufferUntilSubscriber<T> extends Subject<T, T> {
     }
 
     /** The common state. */
-    static final class State<T> {
-        AtomicReference<Observer<? super T>> observerRef = new AtomicReference<Observer<? super T>>(null);
-
+    static final class State<T> extends AtomicReference<Observer<? super T>> {
         boolean casObserverRef(Observer<? super T>  expected, Observer<? super T>  next) {
-            return observerRef.compareAndSet(expected, next);
+            return compareAndSet(expected, next);
         }
 
         final Object guard = new Object();
@@ -88,7 +86,7 @@ public final class BufferUntilSubscriber<T> extends Subject<T, T> {
                     @SuppressWarnings("unchecked")
                     @Override
                     public void call() {
-                        state.observerRef.set(EMPTY_OBSERVER);
+                        state.set(EMPTY_OBSERVER);
                     }
                 }));
                 boolean win = false;
@@ -103,7 +101,7 @@ public final class BufferUntilSubscriber<T> extends Subject<T, T> {
                     while(true) {
                         Object o;
                         while ((o = state.buffer.poll()) != null) {
-                            nl.accept(state.observerRef.get(), o);
+                            nl.accept(state.get(), o);
                         }
                         synchronized (state.guard) {
                             if (state.buffer.isEmpty()) {
@@ -134,7 +132,7 @@ public final class BufferUntilSubscriber<T> extends Subject<T, T> {
     private void emit(Object v) {
         synchronized (state.guard) {
             state.buffer.add(v);
-            if (state.observerRef.get() != null && !state.emitting) {
+            if (state.get() != null && !state.emitting) {
                 // Have an observer and nobody is emitting,
                 // should drain the `buffer`
                 forward = true;
@@ -144,7 +142,7 @@ public final class BufferUntilSubscriber<T> extends Subject<T, T> {
         if (forward) {
             Object o;
             while ((o = state.buffer.poll()) != null) {
-                state.nl.accept(state.observerRef.get(), o);
+                state.nl.accept(state.get(), o);
             }
             // Because `emit(Object v)` will be called in sequence,
             // no event will be put into `buffer` after we drain it.
@@ -154,7 +152,7 @@ public final class BufferUntilSubscriber<T> extends Subject<T, T> {
     @Override
     public void onCompleted() {
         if (forward) {
-            state.observerRef.get().onCompleted();
+            state.get().onCompleted();
         }
         else {
             emit(state.nl.completed());
@@ -164,7 +162,7 @@ public final class BufferUntilSubscriber<T> extends Subject<T, T> {
     @Override
     public void onError(Throwable e) {
         if (forward) {
-            state.observerRef.get().onError(e);
+            state.get().onError(e);
         }
         else {
             emit(state.nl.error(e));
@@ -174,7 +172,7 @@ public final class BufferUntilSubscriber<T> extends Subject<T, T> {
     @Override
     public void onNext(T t) {
         if (forward) {
-            state.observerRef.get().onNext(t);
+            state.get().onNext(t);
         }
         else {
             emit(state.nl.next(t));
@@ -184,7 +182,7 @@ public final class BufferUntilSubscriber<T> extends Subject<T, T> {
     @Override
     public boolean hasObservers() {
         synchronized (state.guard) {
-            return state.observerRef.get() != null;
+            return state.get() != null;
         }
     }
 
